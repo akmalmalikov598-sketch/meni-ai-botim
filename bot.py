@@ -1,5 +1,5 @@
 # bot.py  (bitta fayl)
-import os, re, io, json, html, base64, sqlite3, asyncio, logging, time
+import os, re, json, html, base64, sqlite3, asyncio, logging, time
 from threading import Thread
 import httpx
 from flask import Flask
@@ -10,10 +10,12 @@ from telegram.ext import (Application, CommandHandler, MessageHandler,
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 GROQ_KEY = os.environ["GROQ_API_KEY"]
-CHAT_MODEL = os.getenv("CHAT_MODEL", "llama-3.3-70b-versatile")
-VISION_MODEL = os.getenv("VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 STT_MODEL = os.getenv("STT_MODEL", "whisper-large-v3-turbo")
 HISTORY_LIMIT = 20
+
+# main() ichida avtomatik tanlanadi (env orqali majburlash ham mumkin)
+CHAT_MODEL = "llama-3.1-8b-instant"
+VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 SYSTEM_PROMPT = (
     "Sen ChatGPT darajasidagi aqlli, do'stona AI yordamchisan. "
@@ -22,12 +24,54 @@ SYSTEM_PROMPT = (
     "va uni ``` bloklarida ber."
 )
 
-CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
-STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+BASE = "https://api.groq.com/openai/v1"
+CHAT_URL = f"{BASE}/chat/completions"
+STT_URL = f"{BASE}/audio/transcriptions"
+MODELS_URL = f"{BASE}/models"
 HEADERS = {"Authorization": f"Bearer {GROQ_KEY}"}
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("gptbot")
+
+# ---------- Model tanlash ----------
+CHAT_PREFERRED = ["llama-3.3-70b-versatile", "openai/gpt-oss-120b",
+                  "llama-3.1-8b-instant", "openai/gpt-oss-20b"]
+VISION_PREFERRED = ["meta-llama/llama-4-scout-17b-16e-instruct",
+                    "meta-llama/llama-4-maverick-17b-128e-instruct"]
+
+def fetch_model_ids():
+    try:
+        r = httpx.get(MODELS_URL, headers=HEADERS, timeout=20)
+        ids = [m["id"] for m in r.json().get("data", [])]
+        log.info("Mavjud modellar: %s", ids)
+        return ids
+    except Exception as e:
+        log.error("Model ro'yxati xato: %s", e)
+        return []
+
+def pick_models():
+    global CHAT_MODEL, VISION_MODEL
+    ids = fetch_model_ids()
+
+    if os.getenv("CHAT_MODEL"):
+        CHAT_MODEL = os.getenv("CHAT_MODEL")
+    elif ids:
+        found = next((m for m in CHAT_PREFERRED if m in ids), None)
+        if not found:
+            others = [i for i in ids if not any(x in i for x in
+                      ("whisper", "guard", "tts", "playai", "orpheus"))]
+            found = others[0] if others else CHAT_MODEL
+        CHAT_MODEL = found
+
+    if os.getenv("VISION_MODEL"):
+        VISION_MODEL = os.getenv("VISION_MODEL")
+    elif ids:
+        found = next((m for m in VISION_PREFERRED if m in ids), None)
+        if not found:
+            found = next((i for i in ids if "llama-4" in i or "vision" in i), None)
+        VISION_MODEL = found or VISION_MODEL
+
+    log.info("Chat model: %s | Vision model: %s", CHAT_MODEL, VISION_MODEL)
 
 # ---------- Flask keep-alive ----------
 app = Flask(__name__)
@@ -262,6 +306,7 @@ async def on_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             add_msg(uid, "assistant", ans)
 
 def main():
+    pick_models()
     Thread(target=run_flask, daemon=True).start()
     application = (Application.builder().token(BOT_TOKEN)
                    .concurrent_updates(True).build())
