@@ -5,12 +5,16 @@ from threading import Thread
 from urllib.parse import quote, unquote, urlparse, parse_qs
 import httpx
 from flask import Flask
-from telegram import (Update, InlineKeyboardButton as Btn, InlineKeyboardMarkup as Kb,
+from telegram import (Update, InlineKeyboardButton as _InlineKeyboardButton, InlineKeyboardMarkup as Kb,
                       LabeledPrice, InlineQueryResultArticle, InputTextMessageContent, BotCommand)
 from telegram.constants import ChatAction
 from telegram.error import BadRequest
 from telegram.ext import (Application, CommandHandler, MessageHandler, CallbackQueryHandler,
                           InlineQueryHandler, PreCheckoutQueryHandler, filters, ContextTypes)
+
+# Ikkinchi argument callback_data; URL faqat url= orqali beriladi.
+def Btn(text, data=None, *, url=None):
+    return _InlineKeyboardButton(text=text, callback_data=data, url=url)
 
 # ================= SOZLAMALAR =================
 BOT_TOKEN = os.environ["BOT_TOKEN"]
