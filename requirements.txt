@@ -1,3 +1,8 @@
 python-telegram-bot==21.6
 httpx
 flask
+pypdf
+python-docx
+openpyxl
+edge-tts
+youtube-transcript-api
