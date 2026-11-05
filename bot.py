@@ -769,16 +769,29 @@ def admin_kb():
 
 def stats_text():
     t0 = int(datetime.now(TZ).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-    c = lambda sql, a=(): q1(sql, a)["n"]
-    return ("📊 <b>Statistika</b>\n\n"
-            f"👥 Jami: <b>{c('SELECT COUNT(*) n FROM users')}</b>\n"
-            f"🆕 Bugun yangi: <b>{c('SELECT COUNT(*) n FROM users WHERE created>=?', (t0,))}</b>\n"
-            f"🔥 Bugun faol: <b>{c('SELECT COUNT(*) n FROM users WHERE last_seen>=?', (t0,))}</b>\n"
-            f"💎 Pullik tarif: <b>{c(\"SELECT COUNT(*) n FROM users WHERE plan!='free'\")}</b>\n"
-            f"🚫 Ban: <b>{c('SELECT COUNT(*) n FROM users WHERE banned=1')}</b>\n"
-            f"💬 Jami so'rovlar: <b>{c('SELECT COALESCE(SUM(total),0) n FROM users')}</b>\n"
-            f"💰 Daromad (karta): <b>{c(\"SELECT COALESCE(SUM(amount),0) n FROM payments WHERE status='ok'\"):,}</b> so'm\n"
-            f"⭐ Stars: <b>{c(\"SELECT COALESCE(SUM(amount),0) n FROM payments WHERE status='stars'\")}</b>")
+
+    def count(sql, args=()):
+        row = q1(sql, args)
+        return row["n"] if row else 0
+
+    total_users = count("SELECT COUNT(*) n FROM users")
+    new_today = count("SELECT COUNT(*) n FROM users WHERE created>=?", (t0,))
+    active_today = count("SELECT COUNT(*) n FROM users WHERE last_seen>=?", (t0,))
+    paid_users = count("SELECT COUNT(*) n FROM users WHERE plan != 'free'")
+    banned_users = count("SELECT COUNT(*) n FROM users WHERE banned=1")
+    total_requests = count("SELECT COALESCE(SUM(total),0) n FROM users")
+    card_income = count("SELECT COALESCE(SUM(amount),0) n FROM payments WHERE status='ok'")
+    stars_income = count("SELECT COALESCE(SUM(amount),0) n FROM payments WHERE status='stars'")
+
+    return ("📊 <b>Statistika</b>\\n\\n"
+            f"👥 Jami: <b>{total_users}</b>\\n"
+            f"🆕 Bugun yangi: <b>{new_today}</b>\\n"
+            f"🔥 Bugun faol: <b>{active_today}</b>\\n"
+            f"💎 Pullik tarif: <b>{paid_users}</b>\\n"
+            f"🚫 Ban: <b>{banned_users}</b>\\n"
+            f"💬 Jami so'rovlar: <b>{total_requests}</b>\\n"
+            f"💰 Daromad (karta): <b>{card_income:,}</b> so'm\\n"
+            f"⭐ Stars: <b>{stars_income}</b>")
 
 def user_card(uid):
     u = fresh(uid)
